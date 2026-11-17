@@ -244,12 +244,16 @@ public:
         return vk13_features.subgroupSizeControl && vk13_props.maxSubgroupSize >= 64;
     }
 
-    /// Returns true if compute pipelines must pin their subgroup size to a fixed value
-    bool IsComputeSubgroupSizeControlNeeded() const {
+    /// Returns true if pipelines must pin the subgroup size of the given stage to a fixed value
+    bool IsSubgroupSizeControlNeeded(vk::ShaderStageFlagBits stage) const {
         return vk13_features.subgroupSizeControl &&
-               (vk13_props.requiredSubgroupSizeStages & vk::ShaderStageFlagBits::eCompute) &&
+               (vk13_props.requiredSubgroupSizeStages & stage) &&
                (IsSubgroupSize64Supported() ||
                 vk13_props.minSubgroupSize != vk13_props.maxSubgroupSize);
+    }
+
+    bool IsComputeSubgroupSizeControlNeeded() const {
+        return IsSubgroupSizeControlNeeded(vk::ShaderStageFlagBits::eCompute);
     }
 
     /// Returns the subgroup size compute pipelines run with
