@@ -392,6 +392,10 @@ private:
 
     /// Removes image from the cache and schedules it for deletion.
     void FreeImage(ImageId image_id) {
+        if (False(slot_images[image_id].flags & ImageFlagBits::Registered)) {
+            NoteDoubleFree(image_id);
+            return;
+        }
         {
             std::scoped_lock lk{slot_images[image_id].mutex};
             UntrackImage(image_id);
@@ -402,6 +406,9 @@ private:
 
     void GarbageCollectImages();
     void GarbageCollectSamplers();
+
+    /// Logs a FreeImage call on an image that is no longer registered and skips it.
+    void NoteDoubleFree(ImageId image_id);
 
     /// Remembers an image left alive beside a newer image at the same address.
     void NoteStaleAlias(ImageId image_id);

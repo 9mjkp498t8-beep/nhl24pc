@@ -26,6 +26,8 @@ inline std::atomic<u64> tc_right_view{0};    ///< requested image served as a mi
 inline std::atomic<u64> tc_left_copy{0};     ///< cached image copied into a larger merged image (CopyMip)
 inline std::atomic<u64> draw_skip_pipeline{0}; ///< draws/dispatches skipped: no pipeline (key refresh failed)
 inline std::atomic<u64> draw_skip_bind{0};     ///< draws/dispatches skipped: BindResources failed
+inline std::atomic<u64> tc_double_free{
+    0}; ///< FreeImage on an image that was already freed (skipped)
 inline std::atomic<u64> tc_incompatible{0};    ///< FindImage: cached image format incompatible -> null image
 inline std::atomic<u64> draws{0};              ///< Rasterizer::Draw / DrawIndirect calls (before filtering)
 inline std::atomic<u64> dispatches{0};         ///< Rasterizer::DispatchDirect / DispatchIndirect calls

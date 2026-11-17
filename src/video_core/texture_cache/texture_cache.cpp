@@ -1,17 +1,18 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include <cstdlib>
-#include <cstring>
 #include <array>
 #include <bit>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
 #include <span>
+#include <tuple>
+#include <utility>
+#include <xxhash.h>
 #include "common/diag_log.h"
 #include "common/io_file.h"
 #include "common/path_util.h"
-#include <tuple>
-#include <limits>
-#include <xxhash.h>
 
 #include "common/assert.h"
 #include "common/thread.h"
@@ -468,6 +469,13 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
                              image_info.guest_address);
                 }
                 VideoCore::Perf::tc_incompatible.fetch_add(1, std::memory_order_relaxed);
+                if (k < 200 || k % 100 == 0) {
+                    Diag::Eventf(
+                        "texcache", "missing texture #{}: wants {}x{} {} but cache has {} @ {:#x}",
+                        k, image_info.size.width, image_info.size.height,
+                        vk::to_string(image_info.pixel_format),
+                        vk::to_string(result_image.info.pixel_format), image_info.guest_address);
+                }
                 NoteStaleAlias(cache_image_id);
             }
             return {is_compatible ? result_id : ImageId{}, -1, -1};
@@ -1344,6 +1352,24 @@ void TextureCache::GarbageCollectImages() {
         // If we are still over the critical limit, run an aggressive GC
         configure(true);
         image_lru_cache.ForEachItemBelow(gc_tick - ticks_to_destroy, clean_up);
+    }
+}
+
+void TextureCache::NoteDoubleFree(ImageId image_id) {
+    static constexpr std::array<const char*, VideoCore::Perf::FreeReasonCount> reason_names = {
+        "pool-alias",   "depth-recreate", "expand", "left-target", "left-copy",
+        "right-chance", "resolve-failed", "gc",     "unmap",       "tile-mode",
+    };
+    const u32 reason = std::exchange(VideoCore::Perf::last_free_reason, 0xffffffffu);
+    const char* reason_name = reason < reason_names.size() ? reason_names[reason] : "unknown";
+    const u64 n = VideoCore::Perf::tc_double_free.fetch_add(1, std::memory_order_relaxed);
+    const auto& i = slot_images[image_id].info;
+    if (n < 100 || n % 1000 == 0) {
+        LOG_WARNING(Render, "Skipping free of an already freed image #{}: {}x{} {} @ {:#x} ({})", n,
+                    i.size.width, i.size.height, vk::to_string(i.pixel_format), i.guest_address,
+                    reason_name);
+        Diag::Eventf("texcache", "double free skipped #{}: {}x{} {} @ {:#x} ({})", n, i.size.width,
+                     i.size.height, vk::to_string(i.pixel_format), i.guest_address, reason_name);
     }
 }
 
