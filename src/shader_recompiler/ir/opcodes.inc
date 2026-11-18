@@ -105,6 +105,9 @@ OPCODE(UndefU32x2,                                          U32x2,              
 OPCODE(UndefU32x3,                                          U32x3,                                                                                            )
 OPCODE(UndefU32x4,                                          U32x4,                                                                                            )
 OPCODE(UndefF32,                                            F32,                                                                                            )
+OPCODE(UndefF32x2,                                          F32x2,                                                                                          )
+OPCODE(UndefF32x3,                                          F32x3,                                                                                          )
+OPCODE(UndefF32x4,                                          F32x4,                                                                                          )
 OPCODE(UndefU64,                                            U64,                                                                                            )
 
 // Buffer operations
