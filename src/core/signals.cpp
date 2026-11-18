@@ -15,6 +15,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <dbghelp.h>
+#include <atomic>
 #include <chrono>
 #include "common/path_util.h"
 static constexpr DWORD MS_VC_EXCEPTION = 0x406D1388;
@@ -169,6 +170,21 @@ static LONG WINAPI SignalHandler(EXCEPTION_POINTERS* pExp) noexcept {
 
     if (handled) {
         return EXCEPTION_CONTINUE_EXECUTION;
+    }
+
+    // nhlport: a fault the emulator did not handle goes to the game's own signal handler, which
+    // may terminate the process without anything reaching the log. Keep dumps of the first few.
+    if (code == EXCEPTION_ACCESS_VIOLATION && g_curthread) {
+        static std::atomic<u32> passed{0};
+        const u32 n = passed.fetch_add(1, std::memory_order_relaxed);
+        if (n < 100) {
+            LOG_CRITICAL(Debug,
+                         "Access violation #{} at {} (fault address {:#x}) passed to the guest", n,
+                         address, pExp->ExceptionRecord->ExceptionInformation[1]);
+        }
+        if (n < 5) {
+            WriteCrashDump(pExp);
+        }
     }
 
     if (guest_info._si_signo != 0) {
