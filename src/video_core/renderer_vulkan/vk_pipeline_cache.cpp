@@ -468,6 +468,23 @@ bool PipelineCache::RefreshGraphicsKey() {
     const bool skip_cb_binding =
         regs.color_control.mode == AmdGpu::ColorControl::OperationMode::Disable;
 
+    // nhlport diag: how the game programs colour slot 7 (the PS4 Pro ID buffer).
+    if (const auto& cb7 = regs.color_buffers[AmdGpu::NUM_COLOR_BUFFERS - 1]; cb7.base_address) {
+        static u64 last_sig = ~0ull;
+        static u32 logged = 0;
+        const u64 sig = (u64(cb7.info.raw) << 32) | regs.color_target_mask.raw;
+        if (sig != last_sig && logged < 20) {
+            last_sig = sig;
+            ++logged;
+            LOG_WARNING(Render_Vulkan,
+                        "cb7: base {:#x} info {:#x} attrib {:#x} pitch {} slice {} target mask "
+                        "{:#x} shader mask {:#x} color control mode {}",
+                        cb7.Address(), cb7.info.raw, cb7.attrib.raw, cb7.Pitch(),
+                        cb7.slice.tile_max, regs.color_target_mask.raw, regs.color_shader_mask.raw,
+                        u32(regs.color_control.mode));
+        }
+    }
+
     // First pass to fill render target information needed by shader recompiler
     for (s32 cb = 0; cb < AmdGpu::NUM_COLOR_BUFFERS && !skip_cb_binding; ++cb) {
         const auto& col_buf = regs.color_buffers[cb];
