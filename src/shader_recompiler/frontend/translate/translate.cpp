@@ -653,6 +653,14 @@ IR::F32 Translator::GetSrcMix(const InstOperand& operand) {
         }
     };
 
+    const auto from_u32 = [&](const IR::U32& u) -> IR::F32 {
+        if (!operand.op_sel.op_sel_hi) {
+            return ir.BitCast<IR::F32>(u);
+        }
+        return IR::F32{ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, u),
+                                           operand.op_sel.op_sel ? 1 : 0)};
+    };
+
     IR::F32 value{};
     switch (operand.field) {
     case OperandField::ScalarGPR:
@@ -697,26 +705,17 @@ IR::F32 Translator::GetSrcMix(const InstOperand& operand) {
     case OperandField::ConstFloatNeg_4_0:
         value = get_imm(-4.0f);
         break;
-    case OperandField::VccLo: {
-        if (!operand.op_sel.op_sel_hi) {
-            value = ir.BitCast<IR::F32>(ir.GetVccLo());
-        } else if (operand.op_sel.op_sel) {
-            value = IR::F32{
-                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 1)};
-        } else {
-            value = IR::F32{
-                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 0)};
-        }
+    case OperandField::VccLo:
+        value = from_u32(ir.GetVccLo());
         break;
-    }
     case OperandField::VccHi:
-        UNREACHABLE();
+        value = from_u32(ir.GetVccHi());
         break;
     case OperandField::M0:
-        UNREACHABLE();
+        value = from_u32(ir.GetM0());
         break;
     case OperandField::Scc:
-        UNREACHABLE();
+        value = from_u32(IR::U32{ir.Select(ir.GetScc(), ir.Imm32(1u), ir.Imm32(0u))});
         break;
     case OperandField::Inv2Pi:
         value = get_imm(static_cast<float>(1.0f / (2.0f * std::numbers::pi)));
