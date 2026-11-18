@@ -84,8 +84,9 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
     case Opcode::V_ADD_I32:
         return V_ADD_I32(inst);
     case Opcode::V_SUB_I32:
-    case Opcode::V_SUB_CO_U32:
         return V_SUB_I32(inst);
+    case Opcode::V_SUB_CO_U32:
+        return V_SUB_CO_U32(inst);
     case Opcode::V_SUBREV_I32:
         return V_SUBREV_I32(inst);
     case Opcode::V_ADDC_U32:
@@ -820,6 +821,12 @@ void Translator::V_SUB_I32(const GcnInst& inst) {
 
     const IR::U1 did_underflow{ir.IGreaterThan(src1, src0, false)};
     SetCarryOut(inst, did_underflow);
+}
+
+void Translator::V_SUB_CO_U32(const GcnInst& inst) {
+    const IR::U32 src0{GetSrc(inst.src[0])};
+    const IR::U32 src1{GetSrc(inst.src[1])};
+    SetDst(inst.dst[0], ir.ISub(src0, src1));
 }
 
 void Translator::V_SUBREV_I32(const GcnInst& inst) {

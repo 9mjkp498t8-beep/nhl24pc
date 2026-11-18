@@ -270,6 +270,7 @@ public:
     // VOP3a
     void V_MAD_F32(const GcnInst& inst);
     void V_MAD_F16(const GcnInst& inst);
+    void V_SUB_CO_U32(const GcnInst& inst);
     void V_MAD_I32_I24(const GcnInst& inst, bool is_signed = true);
     void V_MAD_U32_U24(const GcnInst& inst);
     void V_CUBEID_F32(const GcnInst& inst);
