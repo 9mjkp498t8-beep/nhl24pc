@@ -814,6 +814,14 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
                                    kind, reinterpret_cast<uintptr_t>(pipeline), trace_clear_mask);
     {
         const auto& regs = liverpool->regs;
+        if (!(kind[0] == 'd' && kind[1] == 'i')) {
+            // colour slot 7 (PS4 Pro ID buffer) and the masks that decide whether it is written
+            const auto& cb7 = regs.color_buffers[AmdGpu::NUM_COLOR_BUFFERS - 1];
+            line += fmt::format(" tm={:#x} sm={:#x} cc={:#x} cb7=[{:#x} i{:#x} a{:#x}]",
+                                regs.color_target_mask.raw, regs.color_shader_mask.raw,
+                                u32(regs.color_control.mode), cb7.Address(), cb7.info.raw,
+                                cb7.attrib.raw);
+        }
         if (kind[0] == 'd' && kind[1] == 'i') { // disp
             const auto& cs = liverpool->GetCsRegs();
             line += fmt::format(" dim=[{} {} {}] tg=[{} {} {}] ud=[", cs.dim_x, cs.dim_y, cs.dim_z,
