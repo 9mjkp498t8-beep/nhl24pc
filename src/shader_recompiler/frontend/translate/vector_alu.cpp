@@ -84,6 +84,7 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
     case Opcode::V_ADD_I32:
         return V_ADD_I32(inst);
     case Opcode::V_SUB_I32:
+    case Opcode::V_SUB_CO_U32:
         return V_SUB_I32(inst);
     case Opcode::V_SUBREV_I32:
         return V_SUBREV_I32(inst);

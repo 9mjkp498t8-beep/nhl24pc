@@ -104,8 +104,9 @@ bool IsVop3BEncoding(Opcode opcode) {
     return opcode == Opcode::V_ADD_I32 || opcode == Opcode::V_ADDC_U32 ||
            opcode == Opcode::V_SUB_I32 || opcode == Opcode::V_SUBB_U32 ||
            opcode == Opcode::V_SUBREV_I32 || opcode == Opcode::V_SUBBREV_U32 ||
-           opcode == Opcode::V_DIV_SCALE_F32 || opcode == Opcode::V_DIV_SCALE_F64 ||
-           opcode == Opcode::V_MAD_U64_U32 || opcode == Opcode::V_MAD_I64_I32;
+           opcode == Opcode::V_SUB_CO_U32 || opcode == Opcode::V_DIV_SCALE_F32 ||
+           opcode == Opcode::V_DIV_SCALE_F64 || opcode == Opcode::V_MAD_U64_U32 ||
+           opcode == Opcode::V_MAD_I64_I32;
 }
 
 GcnInst GcnDecodeContext::decodeInstruction(GcnCodeSlice& code) {
@@ -790,8 +791,9 @@ void GcnDecodeContext::decodeInstructionVOP3(uint64_t hexInstruction) {
         }
     }
 
-    if (op >= static_cast<u32>(OpcodeVOP3::V_ADD_I32) &&
-        op <= static_cast<u32>(OpcodeVOP3::V_DIV_SCALE_F64)) {
+    if ((op >= static_cast<u32>(OpcodeVOP3::V_ADD_I32) &&
+         op <= static_cast<u32>(OpcodeVOP3::V_DIV_SCALE_F64)) ||
+        op == static_cast<u32>(OpcodeVOP3::V_SUB_CO_U32)) {
         // VOP3B has a sdst operand.
         m_instruction.dst_count = 2;
     } else {
