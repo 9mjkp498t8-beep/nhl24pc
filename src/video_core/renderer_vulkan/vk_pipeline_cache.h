@@ -141,6 +141,7 @@ private:
     Shader::Gcn::FetchShaderData* fetch_shader{};
     GraphicsPipelineKey graphics_key{};
     ComputePipelineKey compute_key{};
+    bool fs_id_buffer{};     ///< the fragment runtime info built last writes the PS4 Pro ID buffer
     u32 num_new_pipelines{}; // new pipelines added to the cache since the game start
 
     // Only if Config::collectShadersForDebug()

@@ -196,6 +196,7 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(HwStage stage, SwStag
                                    instance.IsGeometryStageSupported() &&
                                    id_cb.data_format == AmdGpu::DataFormat::Format32 &&
                                    id_cb.num_format == AmdGpu::NumberFormat::Uint;
+            fs_id_buffer = info.hw.fs.id_buffer;
         }
         info.hw.fs.num_samples =
             regs.ps_input_addr.sample_coverage_ena && regs.ps_input_ena.sample_coverage_ena
@@ -593,6 +594,10 @@ bool PipelineCache::RefreshGraphicsStages() {
 
     const auto* fs_info = infos[static_cast<u32>(SwStage::Fragment)];
     key.mrt_mask = fs_info ? fs_info->mrt_mask : 0u;
+    if (fs_info && fs_id_buffer) {
+        // The program info is the one of its first permutation, which may not write the ID buffer.
+        key.mrt_mask |= 1u << (Shader::MaxColorBuffers - 1);
+    }
     key.num_color_attachments = std::bit_width(key.mrt_mask);
 
     switch (regs.stage_enable.raw) {
