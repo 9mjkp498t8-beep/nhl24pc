@@ -734,6 +734,13 @@ void Rasterizer::DumpBoundImages() {
 void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shader::Info* cs_info) {
     std::string line = fmt::format("dl f{} {} p={:#x} clr={:#x}", VideoCore::Perf::gpu_frame.load(std::memory_order_relaxed),
                                    kind, reinterpret_cast<uintptr_t>(pipeline), trace_clear_mask);
+    // Guest memory can be unmapped by a game thread at any time, so read it through the backing.
+    const auto peek = [this](VAddr addr, u32 bytes) {
+        std::array<u32, 64> words{};
+        memory->CopySparseMemory(addr, reinterpret_cast<u8*>(words.data()),
+                                 std::min<u32>(bytes, sizeof(words)));
+        return words;
+    };
     {
         const auto& regs = liverpool->regs;
         if (kind[0] == 'd' && kind[1] == 'i') { // disp
@@ -756,7 +763,7 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
                     if (!desc.is_written && size <= 1024 && addr != 0 &&
                         memory->IsValidMapping(addr, size)) {
                         const u32 n = std::min<u32>(size / 4, 48);
-                        const u32* dw = std::bit_cast<const u32*>(addr);
+                        const auto dw = peek(addr, n * 4);
                         line += ":";
                         for (u32 i = 0; i < n; ++i) {
                             line += fmt::format(" {:x}", dw[i]);
@@ -834,7 +841,7 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
             line += fmt::format(" vb=[{:#x} s{} {}", addr, stride, size);
             if (addr != 0 && size != 0 && memory->IsValidMapping(addr, std::min<u32>(size, 256))) {
                 const u32 n = std::min<u32>(size / 4, 64);
-                const u32* dw = std::bit_cast<const u32*>(addr);
+                const auto dw = peek(addr, n * 4);
                 line += ":";
                 for (u32 k = 0; k < n; ++k) {
                     line += fmt::format(" {:x}", dw[k]);
@@ -853,7 +860,7 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
                 const VAddr vaddr = sharp.base_address;
                 const u32 vbytes = std::min<u32>(sharp.GetSize(), 128);
                 if (vaddr != 0 && vbytes >= 4 && memory->IsValidMapping(vaddr, vbytes)) {
-                    const u32* dw = std::bit_cast<const u32*>(vaddr);
+                    const auto dw = peek(vaddr, vbytes);
                     line += ":";
                     for (u32 k = 0; k < vbytes / 4; ++k) {
                         line += fmt::format(" {:x}", dw[k]);
@@ -868,13 +875,14 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
                                 ir.index_buffer_type.index_type == AmdGpu::IndexType::Index16 ? "u16" : "u32");
             if (ib != 0 && ni != 0 && memory->IsValidMapping(ib, 64)) {
                 line += ":";
+                const auto iw = peek(ib, 48);
                 if (ir.index_buffer_type.index_type == AmdGpu::IndexType::Index16) {
-                    const u16* ix = std::bit_cast<const u16*>(ib);
+                    const u16* ix = reinterpret_cast<const u16*>(iw.data());
                     for (u32 k = 0; k < std::min<u32>(ni, 12); ++k) {
                         line += fmt::format(" {}", ix[k]);
                     }
                 } else {
-                    const u32* ix = std::bit_cast<const u32*>(ib);
+                    const u32* ix = iw.data();
                     for (u32 k = 0; k < std::min<u32>(ni, 12); ++k) {
                         line += fmt::format(" {}", ix[k]);
                     }
@@ -906,7 +914,7 @@ void Rasterizer::LogDrawTrace(const char* kind, const void* pipeline, const Shad
             }
             line += fmt::format(" cb=[{:#x} {} r:", addr, size);
             const u32 n = std::min<u32>(size / 4, 32);
-            const u32* dw = std::bit_cast<const u32*>(addr);
+            const auto dw = peek(addr, n * 4);
             for (u32 i = 0; i < n; ++i) {
                 line += fmt::format(" {:x}", dw[i]);
             }
