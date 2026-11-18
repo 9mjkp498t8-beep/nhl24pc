@@ -233,6 +233,18 @@ public:
     void V_SQRT_F32(const GcnInst& inst);
     void V_SIN_F32(const GcnInst& inst);
     void V_COS_F32(const GcnInst& inst);
+    void V_RCP_F16(const GcnInst& inst);
+    void V_SQRT_F16(const GcnInst& inst);
+    void V_RSQ_F16(const GcnInst& inst);
+    void V_LOG_F16(const GcnInst& inst);
+    void V_EXP_F16(const GcnInst& inst);
+    void V_FLOOR_F16(const GcnInst& inst);
+    void V_CEIL_F16(const GcnInst& inst);
+    void V_TRUNC_F16(const GcnInst& inst);
+    void V_RNDNE_F16(const GcnInst& inst);
+    void V_FRACT_F16(const GcnInst& inst);
+    void V_SIN_F16(const GcnInst& inst);
+    void V_COS_F16(const GcnInst& inst);
     void V_NOT_B32(const GcnInst& inst);
     void V_BFREV_B32(const GcnInst& inst);
     void V_FFBH_U32(const GcnInst& inst);
@@ -249,6 +261,7 @@ public:
 
     // VOPC
     void V_CMP_F32(ConditionOp op, bool ordered, bool set_exec, const GcnInst& inst);
+    void V_CMP_F16(ConditionOp op, const GcnInst& inst);
     void V_CMP_F64(ConditionOp op, bool ordered, bool set_exec, const GcnInst& inst);
     void V_CMP_U32(ConditionOp op, bool is_signed, bool set_exec, const GcnInst& inst);
     void V_CMP_U64(ConditionOp op, bool is_signed, bool set_exec, const GcnInst& inst);
@@ -256,6 +269,7 @@ public:
 
     // VOP3a
     void V_MAD_F32(const GcnInst& inst);
+    void V_MAD_F16(const GcnInst& inst);
     void V_MAD_I32_I24(const GcnInst& inst, bool is_signed = true);
     void V_MAD_U32_U24(const GcnInst& inst);
     void V_CUBEID_F32(const GcnInst& inst);

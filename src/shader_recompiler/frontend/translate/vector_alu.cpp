@@ -195,6 +195,30 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_SIN_F32(inst);
     case Opcode::V_COS_F32:
         return V_COS_F32(inst);
+    case Opcode::V_RCP_F16:
+        return V_RCP_F16(inst);
+    case Opcode::V_SQRT_F16:
+        return V_SQRT_F16(inst);
+    case Opcode::V_RSQ_F16:
+        return V_RSQ_F16(inst);
+    case Opcode::V_LOG_F16:
+        return V_LOG_F16(inst);
+    case Opcode::V_EXP_F16:
+        return V_EXP_F16(inst);
+    case Opcode::V_FLOOR_F16:
+        return V_FLOOR_F16(inst);
+    case Opcode::V_CEIL_F16:
+        return V_CEIL_F16(inst);
+    case Opcode::V_TRUNC_F16:
+        return V_TRUNC_F16(inst);
+    case Opcode::V_RNDNE_F16:
+        return V_RNDNE_F16(inst);
+    case Opcode::V_FRACT_F16:
+        return V_FRACT_F16(inst);
+    case Opcode::V_SIN_F16:
+        return V_SIN_F16(inst);
+    case Opcode::V_COS_F16:
+        return V_COS_F16(inst);
     case Opcode::V_NOT_B32:
         return V_NOT_B32(inst);
     case Opcode::V_BFREV_B32:
@@ -250,6 +274,22 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_CMP_F32(ConditionOp::LG, false, false, inst);
     case Opcode::V_CMP_NLT_F32:
         return V_CMP_F32(ConditionOp::GE, false, false, inst);
+
+        //     V_CMP_{OP8}_F16
+    case Opcode::V_CMP_F_F16:
+        return V_CMP_F16(ConditionOp::F, inst);
+    case Opcode::V_CMP_LT_F16:
+        return V_CMP_F16(ConditionOp::LT, inst);
+    case Opcode::V_CMP_EQ_F16:
+        return V_CMP_F16(ConditionOp::EQ, inst);
+    case Opcode::V_CMP_LE_F16:
+        return V_CMP_F16(ConditionOp::LE, inst);
+    case Opcode::V_CMP_GT_F16:
+        return V_CMP_F16(ConditionOp::GT, inst);
+    case Opcode::V_CMP_LG_F16:
+        return V_CMP_F16(ConditionOp::LG, inst);
+    case Opcode::V_CMP_GE_F16:
+        return V_CMP_F16(ConditionOp::GE, inst);
 
         //     V_CMPX_{OP16}_F32
     case Opcode::V_CMPX_F_F32:
@@ -417,6 +457,8 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_MAD_LEGACY_F32(inst);
     case Opcode::V_MAD_F32:
         return V_MAD_F32(inst);
+    case Opcode::V_MAD_F16:
+        return V_MAD_F16(inst);
     case Opcode::V_MAD_I32_I24:
         return V_MAD_I32_I24(inst);
     case Opcode::V_MAD_U32_U24:
@@ -1095,6 +1137,66 @@ void Translator::V_COS_F32(const GcnInst& inst) {
     SetDst(inst.dst[0], ir.FPCos(src0));
 }
 
+void Translator::V_RCP_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPRecip(src0));
+}
+
+void Translator::V_SQRT_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPSqrt(src0));
+}
+
+void Translator::V_RSQ_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPRecipSqrt(src0));
+}
+
+void Translator::V_LOG_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPLog2(src0));
+}
+
+void Translator::V_EXP_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPExp2(src0));
+}
+
+void Translator::V_FLOOR_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPFloor(src0));
+}
+
+void Translator::V_CEIL_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPCeil(src0));
+}
+
+void Translator::V_TRUNC_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPTrunc(src0));
+}
+
+void Translator::V_RNDNE_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPRoundEven(src0));
+}
+
+void Translator::V_FRACT_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPFract(src0));
+}
+
+void Translator::V_SIN_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPSin(src0));
+}
+
+void Translator::V_COS_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    SetDst16(inst.dst[0], ir.FPCos(src0));
+}
+
 void Translator::V_NOT_B32(const GcnInst& inst) {
     const IR::U32 src0{GetSrc(inst.src[0])};
     SetDst(inst.dst[0], ir.BitwiseNot(src0));
@@ -1219,6 +1321,32 @@ void Translator::V_CMP_F32(ConditionOp op, bool ordered, bool set_exec, const Gc
         SetDst64(inst.dst[1], ir.Ballot(masked));
         return;
     }
+    SetDst64(inst.dst[1], ir.Ballot(result));
+}
+
+void Translator::V_CMP_F16(ConditionOp op, const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    const auto src1 = GetSrc16<IR::F32>(inst.src[1]);
+    const IR::U1 result = [&] {
+        switch (op) {
+        case ConditionOp::F:
+            return ir.Imm1(false);
+        case ConditionOp::EQ:
+            return ir.FPEqual(src0, src1);
+        case ConditionOp::LG:
+            return ir.FPNotEqual(src0, src1);
+        case ConditionOp::GT:
+            return ir.FPGreaterThan(src0, src1);
+        case ConditionOp::LT:
+            return ir.FPLessThan(src0, src1);
+        case ConditionOp::LE:
+            return ir.FPLessThanEqual(src0, src1);
+        case ConditionOp::GE:
+            return ir.FPGreaterThanEqual(src0, src1);
+        default:
+            UNREACHABLE();
+        }
+    }();
     SetDst64(inst.dst[1], ir.Ballot(result));
 }
 
@@ -1356,6 +1484,13 @@ void Translator::V_MAD_F32(const GcnInst& inst) {
     const IR::F32 src1{GetSrc<IR::F32>(inst.src[1])};
     const IR::F32 src2{GetSrc<IR::F32>(inst.src[2])};
     SetDst(inst.dst[0], ir.FPAdd(ir.FPMul(src0, src1), src2));
+}
+
+void Translator::V_MAD_F16(const GcnInst& inst) {
+    const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+    const auto src1 = GetSrc16<IR::F32>(inst.src[1]);
+    const auto src2 = GetSrc16<IR::F32>(inst.src[2]);
+    SetDst16(inst.dst[0], ir.FPAdd(ir.FPMul(src0, src1), src2));
 }
 
 void Translator::V_MAD_I32_I24(const GcnInst& inst, bool is_signed) {
