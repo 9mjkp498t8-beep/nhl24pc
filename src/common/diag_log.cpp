@@ -1229,8 +1229,14 @@ bool CaptureMatchesDispatch(u64 pgm_hash) {
     if (VideoCore::Perf::dump_cs_pending.load(std::memory_order_relaxed) == 0) {
         return false;
     }
+    // dump_cs_pending has one bit per listed hash, so each shader is dumped once per capture.
     const auto& hashes = CaptureDispatchHashes();
-    return std::find(hashes.begin(), hashes.end(), pgm_hash) != hashes.end();
+    const auto it = std::find(hashes.begin(), hashes.end(), pgm_hash);
+    if (it == hashes.end() || it - hashes.begin() >= 32) {
+        return false;
+    }
+    const u32 bit = 1u << u32(it - hashes.begin());
+    return (VideoCore::Perf::dump_cs_pending.fetch_and(~bit, std::memory_order_relaxed) & bit) != 0;
 }
 
 void ArmCapture(std::string note) {
@@ -1240,8 +1246,9 @@ void ArmCapture(std::string note) {
     }
     Marker(std::move(note));
     VideoCore::Perf::trace_request.store(3, std::memory_order_relaxed);
-    if (!CaptureDispatchHashes().empty()) {
-        VideoCore::Perf::dump_cs_pending.store(1, std::memory_order_relaxed);
+    if (const size_t n = std::min<size_t>(CaptureDispatchHashes().size(), 32); n != 0) {
+        VideoCore::Perf::dump_cs_pending.store(n == 32 ? ~0u : (1u << n) - 1,
+                                               std::memory_order_relaxed);
     }
     std::string list;
     for (const u64 h : CaptureDispatchHashes()) {

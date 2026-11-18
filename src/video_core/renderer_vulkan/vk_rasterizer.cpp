@@ -1030,7 +1030,6 @@ void Rasterizer::ResetBindings(bool is_compute) {
         VideoCore::Perf::draw_trace.load(std::memory_order_relaxed) != 0 &&
         Diag::CaptureMatchesDispatch(last_dispatch_hash)) {
         DumpAllBoundImages();
-        VideoCore::Perf::dump_cs_pending.store(0, std::memory_order_relaxed);
     }
     last_dispatch_hash = 0;
     if (VideoCore::Perf::dump_buffer_pending.load(std::memory_order_relaxed) != 0) {
