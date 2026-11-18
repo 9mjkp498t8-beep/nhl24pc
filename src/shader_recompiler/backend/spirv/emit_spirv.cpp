@@ -135,6 +135,10 @@ Id TypeId(const EmitContext& ctx, IR::Type type) {
     switch (type) {
     case IR::Type::U1:
         return ctx.U1[1];
+    case IR::Type::U16:
+        return ctx.U16;
+    case IR::Type::F16:
+        return ctx.F16[1];
     case IR::Type::U32:
         return ctx.U32[1];
     case IR::Type::U32x2:

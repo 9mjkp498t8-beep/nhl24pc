@@ -14,8 +14,8 @@ Id EmitUndefU8(EmitContext&) {
     UNREACHABLE_MSG("SPIR-V Instruction");
 }
 
-Id EmitUndefU16(EmitContext&) {
-    UNREACHABLE_MSG("SPIR-V Instruction");
+Id EmitUndefU16(EmitContext& ctx) {
+    return ctx.OpUndef(ctx.U16);
 }
 
 Id EmitUndefU32(EmitContext& ctx) {
