@@ -212,12 +212,50 @@ vk::ClearValue Rasterizer::ColorClearValue(const AmdGpu::ColorBuffer& col_buf) c
     return clear_value;
 }
 
+// nhlport: NHLPORT_REGSCAN=<hex>[,<hex>...] logs each register that holds one of these values at
+// a draw (once per register), to find which register points the hardware at a given buffer.
+static void ScanRegsForValues(const AmdGpu::Regs& regs) {
+    static const std::vector<u32> needles = [] {
+        std::vector<u32> v;
+        if (const char* e = std::getenv("NHLPORT_REGSCAN"); e && *e) {
+            std::string list{e};
+            for (size_t pos = 0; pos <= list.size();) {
+                const size_t comma = list.find(',', pos);
+                const auto item =
+                    list.substr(pos, comma == std::string::npos ? comma : comma - pos);
+                if (!item.empty()) {
+                    v.push_back(u32(std::strtoul(item.c_str(), nullptr, 16)));
+                }
+                if (comma == std::string::npos) {
+                    break;
+                }
+                pos = comma + 1;
+            }
+        }
+        return v;
+    }();
+    static u64 calls = 0;
+    if (needles.empty() || (calls++ % 16) != 0) {
+        return;
+    }
+    static std::vector<bool> seen(AmdGpu::Regs::NumRegs);
+    for (u32 i = 0; i < AmdGpu::Regs::NumRegs; ++i) {
+        const u32 value = regs.reg_array[i];
+        if (!seen[i] && std::ranges::find(needles, value) != needles.end()) {
+            seen[i] = true;
+            LOG_WARNING(Render, "regscan: reg {:#x} = {:#x} (gpu frame {})", i, value,
+                        VideoCore::Perf::gpu_frame.load(std::memory_order_relaxed));
+        }
+    }
+}
+
 void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
     RENDERER_TRACE;
 
     scheduler.PopPendingOperations();
 
     VideoCore::Perf::draws.fetch_add(1, std::memory_order_relaxed);
+    ScanRegsForValues(liverpool->regs);
     if (!FilterDraw()) {
         return;
     }
@@ -280,6 +318,7 @@ void Rasterizer::DrawIndirect(bool is_indexed, VAddr arg_address, u32 offset, u3
     scheduler.PopPendingOperations();
 
     VideoCore::Perf::draws.fetch_add(1, std::memory_order_relaxed);
+    ScanRegsForValues(liverpool->regs);
     if (!FilterDraw()) {
         return;
     }
