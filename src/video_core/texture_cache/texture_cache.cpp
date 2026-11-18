@@ -359,11 +359,10 @@ ImageId TextureCache::ResolveDepthOverlap(const ImageInfo& requested_info, Bindi
         new_image.info.meta_info.htile_clear_mask = 0;
         // nhlport: NHL 24 aliases its depth buffer memory with a colour render target of the same
         // size and switches between the two every frame. Reinterpreting the old bits is only
-        // meaningful when the new image is going to be *read* (texture / storage); for a render or
-        // depth target the game overwrites the surface and the copied bits (depth shown as colour)
-        // only cost a full-size copy per frame and leak garbage into untouched regions.
-        const bool contents_matter =
-            binding == BindingType::Texture || binding == BindingType::Storage;
+        // meaningful when the new image is going to be *read* (texture / storage / depth test);
+        // for a render target the game overwrites the surface and the copied bits (depth shown
+        // as colour) only cost a full-size copy per frame and leak garbage into untouched regions.
+        const bool contents_matter = binding != BindingType::RenderTarget;
         if (contents_matter) {
             runtime.CopyColorAndDepth(&cache_image, &new_image);
         } else {
