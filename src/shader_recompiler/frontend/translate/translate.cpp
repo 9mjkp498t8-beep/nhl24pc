@@ -1045,7 +1045,7 @@ void Translator::SetDst16(const InstOperand& operand, const IR::U32F32& value) {
         if (value.Type() == IR::Type::F32) {
             return ir.UConvert(32, ir.BitCast<IR::U16>(IR::F16{ir.FPConvert(16, value)}));
         } else if (value.Type() == IR::Type::U32) {
-            return value;
+            return ir.BitFieldExtract(value, ir.Imm32(0), ir.Imm32(16));
         } else {
             UNREACHABLE();
         }
@@ -1053,19 +1053,25 @@ void Translator::SetDst16(const InstOperand& operand, const IR::U32F32& value) {
 
     const auto op_sel = operand.op_sel.op_sel;
 
+    // Before GFX10 a 16-bit result written to the low half zeroes the high half; only a write to
+    // the high half (op_sel) keeps the other half of the register.
     switch (operand.field) {
     case OperandField::ScalarGPR: {
-        const auto prev_dst = ir.GetScalarReg<IR::U32>(IR::ScalarReg(operand.code));
         const auto result_16 = cast(result);
-        const auto new_dst =
-            ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(op_sel ? 16 : 0), ir.Imm32(16));
+        if (!op_sel) {
+            return ir.SetScalarReg(IR::ScalarReg(operand.code), result_16);
+        }
+        const auto prev_dst = ir.GetScalarReg<IR::U32>(IR::ScalarReg(operand.code));
+        const auto new_dst = ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(16), ir.Imm32(16));
         return ir.SetScalarReg(IR::ScalarReg(operand.code), new_dst);
     }
     case OperandField::VectorGPR: {
-        const auto prev_dst = ir.GetVectorReg<IR::U32>(IR::VectorReg(operand.code));
         const auto result_16 = cast(result);
-        const auto new_dst =
-            ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(op_sel ? 16 : 0), ir.Imm32(16));
+        if (!op_sel) {
+            return ir.SetVectorReg(IR::VectorReg(operand.code), result_16);
+        }
+        const auto prev_dst = ir.GetVectorReg<IR::U32>(IR::VectorReg(operand.code));
+        const auto new_dst = ir.BitFieldInsert(prev_dst, result_16, ir.Imm32(16), ir.Imm32(16));
         return ir.SetVectorReg(IR::VectorReg(operand.code), new_dst);
     }
     default:
