@@ -7,6 +7,7 @@
 #include "common/io_file.h"
 #include "core/debug_state.h"
 #include "core/emulator_settings.h"
+#include "core/libraries/kernel/process.h"
 #include "core/memory.h"
 #include "shader_recompiler/resource.h"
 #include "shader_recompiler/runtime_info.h"
@@ -249,6 +250,42 @@ static void ScanRegsForValues(const AmdGpu::Regs& regs) {
     }
 }
 
+// nhlport: in PS4 Pro mode the game points colour slot 7 at the ID buffer and enables its target
+// mask but leaves its format invalid; the hardware writes a 32-bit ID per sample there. For the
+// duration of a draw, present the slot as an R32 uint target with the samples of slot 0 so it gets
+// bound and the fragment shader can fill it (see HwFragmentRuntimeInfo::id_buffer).
+class IdBufferTarget {
+public:
+    explicit IdBufferTarget(AmdGpu::Regs& regs_) : regs{regs_} {
+        auto& cb7 = regs.color_buffers[AmdGpu::NUM_COLOR_BUFFERS - 1];
+        if (!Libraries::Kernel::sceKernelIsNeoMode() || !cb7.base_address || cb7.info.format != 0 ||
+            regs.color_target_mask.GetMask(AmdGpu::NUM_COLOR_BUFFERS - 1) == 0 ||
+            !regs.color_buffers[0]) {
+            return;
+        }
+        active = true;
+        saved_info = cb7.info.raw;
+        saved_attrib = cb7.attrib.raw;
+        cb7.info.format = static_cast<u32>(AmdGpu::DataFormat::Format32);
+        cb7.info.number_type = static_cast<u32>(AmdGpu::NumberFormat::Uint);
+        cb7.attrib.num_samples_log2 = regs.color_buffers[0].attrib.num_samples_log2;
+        cb7.attrib.num_fragments_log2 = regs.color_buffers[0].attrib.num_fragments_log2;
+    }
+    ~IdBufferTarget() {
+        if (active) {
+            auto& cb7 = regs.color_buffers[AmdGpu::NUM_COLOR_BUFFERS - 1];
+            cb7.info.raw = saved_info;
+            cb7.attrib.raw = saved_attrib;
+        }
+    }
+
+private:
+    AmdGpu::Regs& regs;
+    bool active{};
+    u32 saved_info{};
+    u32 saved_attrib{};
+};
+
 void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
     RENDERER_TRACE;
 
@@ -259,6 +296,7 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset) {
     if (!FilterDraw()) {
         return;
     }
+    const IdBufferTarget id_buffer{liverpool->regs};
 
     const auto& regs = liverpool->regs;
     const GraphicsPipeline* pipeline = pipeline_cache.GetGraphicsPipeline();
@@ -322,6 +360,7 @@ void Rasterizer::DrawIndirect(bool is_indexed, VAddr arg_address, u32 offset, u3
     if (!FilterDraw()) {
         return;
     }
+    const IdBufferTarget id_buffer{liverpool->regs};
 
     const DrawIndirectParams params = {
         .vertex_sgpr_offset = vertex_sgpr_offset,
