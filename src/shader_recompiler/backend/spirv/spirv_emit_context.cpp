@@ -369,6 +369,11 @@ void EmitContext::DefineInputs() {
             output_layer = DefineVariable(U32[1], spv::BuiltIn::Layer, spv::StorageClass::Input);
             Decorate(output_layer, spv::Decoration::Flat);
         }
+        if (info.loads.Get(IR::Attribute::PrimitiveId)) {
+            primitive_id =
+                DefineVariable(U32[1], spv::BuiltIn::PrimitiveId, spv::StorageClass::Input);
+            Decorate(primitive_id, spv::Decoration::Flat);
+        }
         if (info.loads.Get(IR::Attribute::SampleIndex)) {
             sample_index = DefineVariable(U32[1], spv::BuiltIn::SampleId, spv::StorageClass::Input);
             Decorate(sample_index, spv::Decoration::Flat);

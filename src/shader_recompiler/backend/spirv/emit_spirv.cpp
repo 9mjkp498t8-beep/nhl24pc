@@ -347,7 +347,8 @@ void SetupCapabilities(const Info& info, const Profile& profile, const RuntimeIn
              info.loads.Get(IR::Attribute::BaryCoordSmoothSample))) {
             ctx.AddCapability(spv::Capability::SampleRateShading);
         }
-        if (info.loads.GetAny(IR::Attribute::RenderTargetIndex)) {
+        if (info.loads.GetAny(IR::Attribute::RenderTargetIndex) ||
+            info.loads.Get(IR::Attribute::PrimitiveId)) {
             ctx.AddCapability(spv::Capability::Geometry);
         }
         if (info.stores.Get(IR::Attribute::StencilRef) && profile.supports_shader_stencil_export) {

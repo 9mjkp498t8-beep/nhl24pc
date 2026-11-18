@@ -52,6 +52,15 @@ void Translator::ExportRenderTarget(const GcnInst& inst) {
     const IR::Attribute mrt{exp.target};
     info.mrt_mask |= 1u << static_cast<u8>(mrt);
 
+    // PS4 Pro ID buffer: write a per-primitive ID to colour slot 7 along with the first export.
+    constexpr u8 id_mrt_bit = 1u << static_cast<u8>(IR::Attribute::RenderTarget7);
+    if (runtime_info.hw.fs.id_buffer && mrt != IR::Attribute::RenderTarget7 &&
+        (info.mrt_mask & id_mrt_bit) == 0) {
+        info.mrt_mask |= id_mrt_bit;
+        const IR::U32 id = ir.IAdd(ir.GetAttributeU32(IR::Attribute::PrimitiveId), ir.Imm32(1u));
+        ir.SetAttribute(IR::Attribute::RenderTarget7, ir.BitCast<IR::F32>(id), 0);
+    }
+
     // Dual source blending uses MRT1 for exporting src1
     u32 color_buffer_idx = static_cast<u32>(mrt) - static_cast<u32>(IR::Attribute::RenderTarget0);
     if (runtime_info.hw.fs.dual_source_blending && mrt == IR::Attribute::RenderTarget1) {

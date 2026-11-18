@@ -10,6 +10,7 @@
 #include "common/path_util.h"
 #include "core/debug_state.h"
 #include "core/emulator_settings.h"
+#include "core/libraries/kernel/process.h"
 #include "shader_recompiler/backend/spirv/emit_spirv.h"
 #include "shader_recompiler/info.h"
 #include "shader_recompiler/recompiler.h"
@@ -186,6 +187,16 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(HwStage stage, SwStag
         info.hw.fs.num_inputs = regs.num_interp;
         info.hw.fs.front_face_all_bits = regs.barycentric_control.front_face_all_bits;
         info.hw.fs.depth_before_shader = regs.depth_shader_control.depth_before_shader;
+        {
+            // nhlport: in PS4 Pro mode the hardware fills an R32 uint buffer bound to colour slot
+            // 7 with per-pixel primitive IDs (the "ID buffer" checkerboard rendering reads). The
+            // shaders never export it, so it is written by the recompiled shader instead.
+            const auto& id_cb = graphics_key.color_buffers[Shader::MaxColorBuffers - 1];
+            info.hw.fs.id_buffer = Libraries::Kernel::sceKernelIsNeoMode() &&
+                                   instance.IsGeometryStageSupported() &&
+                                   id_cb.data_format == AmdGpu::DataFormat::Format32 &&
+                                   id_cb.num_format == AmdGpu::NumberFormat::Uint;
+        }
         info.hw.fs.num_samples =
             regs.ps_input_addr.sample_coverage_ena && regs.ps_input_ena.sample_coverage_ena
                 ? regs.aa_config.NumSamples()
