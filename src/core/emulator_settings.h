@@ -429,6 +429,8 @@ struct GPUSettings {
     Setting<std::string> full_screen_mode{"Windowed"};
     Setting<std::string> present_mode{"Mailbox"};
     Setting<bool> hdr_allowed{false};
+    // nhlport: HDR output brightness in percent, applied in linear light to the PQ signal.
+    Setting<int> hdr_brightness{100};
     Setting<bool> fsr_enabled{false};
     // nhlport: DLSS presenter upscaler (replaces FSR when the NGX context is available).
     Setting<bool> dlss_enabled{true};
@@ -451,6 +453,7 @@ struct GPUSettings {
             make_override<GPUSettings>("window_height", &GPUSettings::window_height),
             make_override<GPUSettings>("window_width", &GPUSettings::window_width),
             make_override<GPUSettings>("hdr_allowed", &GPUSettings::hdr_allowed),
+            make_override<GPUSettings>("hdr_brightness", &GPUSettings::hdr_brightness),
             make_override<GPUSettings>("fsr_enabled", &GPUSettings::fsr_enabled),
             make_override<GPUSettings>("dlss_enabled", &GPUSettings::dlss_enabled),
             make_override<GPUSettings>("dlss_preset", &GPUSettings::dlss_preset),
@@ -476,9 +479,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(GPUSettings, window_width, window_height, int
                                    readbacks_mode, readback_linear_images_enabled,
                                    direct_memory_access_enabled, dump_shaders, patch_shaders,
                                    vblank_frequency, full_screen, full_screen_mode, present_mode,
-                                   hdr_allowed, fsr_enabled, dlss_enabled, dlss_preset, render_resolution,
-                                   rcas_enabled, rcas_attenuation, userfaultfd, inline_fetch_shader,
-                                   ignore_flip_rate)
+                                   hdr_allowed, hdr_brightness, fsr_enabled, dlss_enabled,
+                                   dlss_preset, render_resolution, rcas_enabled, rcas_attenuation,
+                                   userfaultfd, inline_fetch_shader, ignore_flip_rate)
 
 // -------------------------------
 // Vulkan settings
@@ -750,6 +753,7 @@ public:
     SETTING_FORWARD(m_gpu, InternalScreenHeight, internal_screen_height)
     SETTING_FORWARD(m_gpu, InternalScreenWidth, internal_screen_width)
     SETTING_FORWARD_BOOL(m_gpu, HdrAllowed, hdr_allowed)
+    SETTING_FORWARD(m_gpu, HdrBrightness, hdr_brightness)
     SETTING_FORWARD_BOOL(m_gpu, FsrEnabled, fsr_enabled)
     SETTING_FORWARD_BOOL(m_gpu, FlipRateIgnored, ignore_flip_rate)
     SETTING_FORWARD_BOOL(m_gpu, DlssEnabled, dlss_enabled)

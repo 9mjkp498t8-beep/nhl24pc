@@ -61,6 +61,7 @@ void SettingsWindow::LoadSettings(std::string profile) {
     windowHeightSetting = EmulatorSettings.GetWindowHeight();
     windowWidthSetting = EmulatorSettings.GetWindowWidth();
     hdrAllowedSetting = EmulatorSettings.IsHdrAllowed();
+    hdrBrightnessSetting = EmulatorSettings.GetHdrBrightness();
     fsrEnabledSetting = EmulatorSettings.IsFsrEnabled();
     rcasEnabledSetting = EmulatorSettings.IsRcasEnabled();
     rcasAttenuationSetting = static_cast<float>(EmulatorSettings.GetRcasAttenuation() * 0.001f);
@@ -117,6 +118,7 @@ void SettingsWindow::SaveSettings(std::string profile) {
     EmulatorSettings.SetWindowHeight(windowHeightSetting, isSpecific);
     EmulatorSettings.SetWindowWidth(windowWidthSetting, isSpecific);
     EmulatorSettings.SetHdrAllowed(hdrAllowedSetting, isSpecific);
+    EmulatorSettings.SetHdrBrightness(hdrBrightnessSetting, isSpecific);
     EmulatorSettings.SetFsrEnabled(fsrEnabledSetting, isSpecific);
     EmulatorSettings.SetRcasEnabled(rcasEnabledSetting, isSpecific);
     EmulatorSettings.SetRcasAttenuation(static_cast<int>(rcasAttenuationSetting * 1000),
@@ -722,6 +724,9 @@ void SettingsWindow::DrawSettingsTable(SettingsCategory category) {
             AddSettingSliderInt("Window Width", windowWidthSetting, 0, 8000);
             AddSettingSliderInt("Window Height", windowHeightSetting, 0, 7000);
             AddSettingCheckbox("Enable HDR", hdrAllowedSetting);
+            if (hdrAllowedSetting) {
+                AddSettingSliderInt("HDR Brightness (%)", hdrBrightnessSetting, 25, 400);
+            }
             AddSettingCheckbox("Enable FSR", fsrEnabledSetting);
 
             if (fsrEnabledSetting) {

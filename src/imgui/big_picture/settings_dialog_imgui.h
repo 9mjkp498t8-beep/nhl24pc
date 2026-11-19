@@ -133,6 +133,7 @@ private:
     int windowWidthSetting;
     int windowHeightSetting;
     bool hdrAllowedSetting;
+    int hdrBrightnessSetting;
     bool fsrEnabledSetting;
     bool rcasEnabledSetting;
     float rcasAttenuationSetting;
