@@ -39,6 +39,15 @@ struct Frame {
     u8 id{};
 
     ImTextureID imgui_texture;
+
+    // Diagnostics: sparse readback of the finished frame for brightness logging.
+    vk::Buffer probe_buffer{};
+    VmaAllocation probe_allocation{};
+    const u8* probe_data{};
+    bool probe_pending{false};
+    bool probe_hdr{false};
+    vk::Format probe_format{};
+    u64 probe_gpu_frame{};
 };
 
 enum SchedulerType {
@@ -106,6 +115,9 @@ private:
     Frame* GetRenderFrame();
 
     void RecreateFrame(Frame* frame, u32 width, u32 height);
+
+    void RecordBrightnessProbe(vk::CommandBuffer cmdbuf, Frame* frame);
+    void ReportBrightnessProbe(Frame* frame);
 
     void SetExpectedGameSize(s32 width, s32 height);
 

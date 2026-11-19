@@ -112,6 +112,10 @@ bool ConsumeMarkerScreenshot();
 void OnFramePresented(double dt_ms, u32 vo_width, u32 vo_height, u32 flip_pending,
                       u64 flip_count);
 
+/// Presenter: luminance of a presented frame sampled on a sparse grid (nits; SDR output counts
+/// white as 100 nits). Written to nhl24_brightness.csv; sudden jumps are logged as events.
+void OnFrameBrightness(u64 gpu_frame, bool hdr, float mean_nits, float p95_nits, float max_nits);
+
 /// GPU thread: a flip packet was processed = the game finished one GPU frame.
 void OnGpuFrameBoundary();
 

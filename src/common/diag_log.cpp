@@ -193,7 +193,13 @@ struct State {
     std::FILE* log = nullptr;
     std::FILE* frames = nullptr;
     std::FILE* threads = nullptr;
+    std::FILE* brightness = nullptr;
     std::timed_mutex log_mutex;
+
+    std::mutex brightness_mutex;
+    float brightness_avg = -1.0f; ///< running average of the frame mean (nits)
+    u32 brightness_rows = 0;
+    u32 brightness_jumps = 0;
 
     std::mutex info_mutex;
     std::vector<std::pair<std::string, std::string>> pending_info;
@@ -1057,6 +1063,10 @@ void Init() {
     if (s.threads) {
         std::fputs("t_s,tid,name,cpu_pct\n", s.threads);
     }
+    s.brightness = OpenFile(dir / "nhl24_brightness.csv");
+    if (s.brightness) {
+        std::fputs("t_s,gpu_frame,hdr,mean_nits,p95_nits,max_nits\n", s.brightness);
+    }
     s.t0 = Clock::now();
     s.worst.reserve(WorstFrames + 1);
     s.dts.reserve(1 << 16);
@@ -1125,6 +1135,12 @@ void Flush() {
     if (s.threads) {
         std::fflush(s.threads);
     }
+    {
+        std::scoped_lock lk{s.brightness_mutex};
+        if (s.brightness) {
+            std::fflush(s.brightness);
+        }
+    }
 }
 
 void Shutdown(const char* reason) {
@@ -1169,6 +1185,54 @@ void Shutdown(const char* reason) {
     if (s.threads) {
         std::fclose(s.threads);
         s.threads = nullptr;
+    }
+    {
+        std::scoped_lock lk{s.brightness_mutex};
+        if (s.brightness) {
+            std::fclose(s.brightness);
+            s.brightness = nullptr;
+        }
+    }
+}
+
+void OnFrameBrightness(u64 gpu_frame, bool hdr, float mean_nits, float p95_nits, float max_nits) {
+    State& s = S();
+    if (!s.enabled.load(std::memory_order_relaxed)) {
+        return;
+    }
+    const double t = Seconds(s);
+    std::string jump;
+    {
+        std::scoped_lock lk{s.brightness_mutex};
+        if (!s.brightness) {
+            return;
+        }
+        std::fputs(fmt::format("{:.3f},{},{},{:.2f},{:.2f},{:.2f}\n", t, gpu_frame, hdr ? 1 : 0,
+                               mean_nits, p95_nits, max_nits)
+                       .c_str(),
+                   s.brightness);
+        if (++s.brightness_rows % 120 == 0) {
+            std::fflush(s.brightness);
+        }
+        // A whole-screen flash shows up as a frame far brighter or darker than the recent average.
+        const float avg = s.brightness_avg;
+        if (avg >= 0.0f) {
+            const bool brighter = mean_nits > 4.0f * avg && mean_nits > 40.0f;
+            const bool darker = mean_nits * 4.0f < avg && avg > 4.0f;
+            if (brighter || darker) {
+                ++s.brightness_jumps;
+                jump = fmt::format("gpu frame {} mean {:.1f} nits (p95 {:.1f}, max {:.1f}), recent "
+                                   "average {:.1f} nits, {} #{}",
+                                   gpu_frame, mean_nits, p95_nits, max_nits, avg,
+                                   brighter ? "brighter" : "darker", s.brightness_jumps);
+            }
+            s.brightness_avg = avg * 0.9f + mean_nits * 0.1f;
+        } else {
+            s.brightness_avg = mean_nits;
+        }
+    }
+    if (!jump.empty()) {
+        WriteStamped(s, "brightness", jump);
     }
 }
 

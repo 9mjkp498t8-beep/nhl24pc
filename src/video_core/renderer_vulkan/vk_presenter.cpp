@@ -21,6 +21,7 @@
 #include "imgui/shadnet_notifications_layer.h"
 #include "sdl_window.h"
 #include "video_core/buffer_cache/buffer.h"
+#include "video_core/perf_counters.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
@@ -210,6 +211,14 @@ static std::vector<std::filesystem::path> BuildScreenshotPaths(const ScreenshotK
 
     return paths;
 }
+
+// Presentation frames are 10 bits per channel so PQ encoded HDR output keeps the game's precision
+// on its way to the HDR10 swapchain (an 8-bit frame would band). SDR output is unaffected.
+static constexpr vk::Format FrameFormat = vk::Format::eA2B10G10R10UnormPack32;
+
+// Brightness probe grid (one pixel per cell of the presented frame).
+static constexpr u32 ProbeGridW = 48;
+static constexpr u32 ProbeGridH = 27;
 
 static float PqToNits(const float encoded) {
     // ST.2084 inverse EOTF
@@ -493,7 +502,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
         static_cast<float>(EmulatorSettings.GetRcasAttenuation() / 1000.f);
 
     fsr_pass.Create(device, instance.GetAllocator(), num_images);
-    pp_pass.Create(device, swapchain.GetSurfaceFormat().format);
+    pp_pass.Create(device, FrameFormat);
     dlss_present = std::make_unique<DlssPresentUpscaler>(instance, runtime);
 
     ImGui::Layer::AddLayer(Common::Singleton<Core::Devtools::Layer>::Instance());
@@ -533,6 +542,9 @@ Presenter::~Presenter() {
         vmaDestroyImage(instance.GetAllocator(), frame.image, frame.allocation);
         device.destroyImageView(frame.image_view);
         device.destroyFence(frame.present_done);
+        if (frame.probe_buffer) {
+            vmaDestroyBuffer(instance.GetAllocator(), frame.probe_buffer, frame.probe_allocation);
+        }
     }
 }
 
@@ -552,7 +564,7 @@ void Presenter::RecreateFrame(Frame* frame, u32 width, u32 height) {
         vmaDestroyImage(instance.GetAllocator(), frame->image, frame->allocation);
     }
 
-    const vk::Format format = swapchain.GetSurfaceFormat().format;
+    const vk::Format format = FrameFormat;
     const vk::ImageCreateInfo image_info = {
         .flags = vk::ImageCreateFlagBits::eMutableFormat,
         .imageType = vk::ImageType::e2D,
@@ -606,6 +618,125 @@ void Presenter::RecreateFrame(Frame* frame, u32 width, u32 height) {
 
     frame->imgui_texture = ImGui::Vulkan::AddTexture(view, vk::ImageLayout::eShaderReadOnlyOptimal);
     frame->is_hdr = swapchain.GetHDR();
+}
+
+void Presenter::RecordBrightnessProbe(vk::CommandBuffer cmdbuf, Frame* frame) {
+    constexpr vk::DeviceSize probe_size = ProbeGridW * ProbeGridH * sizeof(u32);
+    if (!frame->probe_buffer) {
+        const VkBufferCreateInfo buffer_ci = static_cast<VkBufferCreateInfo>(vk::BufferCreateInfo{
+            .size = probe_size,
+            .usage = vk::BufferUsageFlagBits::eTransferDst,
+        });
+        const VmaAllocationCreateInfo alloc_ci = {
+            .flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT,
+            .usage = VMA_MEMORY_USAGE_AUTO,
+        };
+        VkBuffer buffer{};
+        VmaAllocationInfo alloc_info{};
+        if (vmaCreateBuffer(instance.GetAllocator(), &buffer_ci, &alloc_ci, &buffer,
+                            &frame->probe_allocation, &alloc_info) != VK_SUCCESS) {
+            return;
+        }
+        frame->probe_buffer = vk::Buffer{buffer};
+        frame->probe_data = static_cast<const u8*>(alloc_info.pMappedData);
+    }
+
+    std::vector<vk::BufferImageCopy> regions;
+    regions.reserve(ProbeGridW * ProbeGridH);
+    for (u32 y = 0; y < ProbeGridH; ++y) {
+        for (u32 x = 0; x < ProbeGridW; ++x) {
+            const u32 px = std::min((2 * x + 1) * frame->width / (2 * ProbeGridW), frame->width - 1);
+            const u32 py =
+                std::min((2 * y + 1) * frame->height / (2 * ProbeGridH), frame->height - 1);
+            regions.push_back(vk::BufferImageCopy{
+                .bufferOffset = (y * ProbeGridW + x) * sizeof(u32),
+                .imageSubresource{
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .mipLevel = 0,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+                .imageOffset = {static_cast<s32>(px), static_cast<s32>(py), 0},
+                .imageExtent = {1, 1, 1},
+            });
+        }
+    }
+
+    const vk::ImageMemoryBarrier2 to_copy{
+        .srcStageMask = vk::PipelineStageFlagBits2::eColorAttachmentOutput,
+        .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eCopy,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
+        .oldLayout = vk::ImageLayout::eGeneral,
+        .newLayout = vk::ImageLayout::eGeneral,
+        .image = frame->image,
+        .subresourceRange{
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .levelCount = 1,
+            .layerCount = 1,
+        },
+    };
+    cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+        .imageMemoryBarrierCount = 1,
+        .pImageMemoryBarriers = &to_copy,
+    });
+    cmdbuf.copyImageToBuffer(frame->image, vk::ImageLayout::eGeneral, frame->probe_buffer,
+                             regions);
+    // Later layout changes of the frame must wait for the copy; the host reads the buffer.
+    const vk::MemoryBarrier2 after_copy{
+        .srcStageMask = vk::PipelineStageFlagBits2::eCopy,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eAllCommands | vk::PipelineStageFlagBits2::eHost,
+        .dstAccessMask = vk::AccessFlagBits2::eHostRead,
+    };
+    cmdbuf.pipelineBarrier2(vk::DependencyInfo{
+        .memoryBarrierCount = 1,
+        .pMemoryBarriers = &after_copy,
+    });
+
+    frame->probe_pending = true;
+    frame->probe_hdr = pp_settings.hdr != 0;
+    frame->probe_gpu_frame = VideoCore::Perf::gpu_frame.load(std::memory_order_relaxed);
+}
+
+void Presenter::ReportBrightnessProbe(Frame* frame) {
+    if (!frame->probe_pending) {
+        return;
+    }
+    frame->probe_pending = false;
+    if (!frame->probe_data || !draw_scheduler.IsFree(frame->ready_tick)) {
+        return;
+    }
+    vmaInvalidateAllocation(instance.GetAllocator(), frame->probe_allocation, 0, VK_WHOLE_SIZE);
+
+    const auto& pq_lut = GetPqDecodeNitsLut();
+    std::array<float, ProbeGridW * ProbeGridH> nits{};
+    double sum = 0.0;
+    for (u32 i = 0; i < nits.size(); ++i) {
+        u32 packed;
+        std::memcpy(&packed, frame->probe_data + i * sizeof(u32), sizeof(packed));
+        const u32 r = packed & 0x3FF;
+        const u32 g = (packed >> 10) & 0x3FF;
+        const u32 b = (packed >> 20) & 0x3FF;
+        float y;
+        if (frame->probe_hdr) {
+            // PQ encoded Rec.2020.
+            y = 0.2627f * pq_lut[r] + 0.6780f * pq_lut[g] + 0.0593f * pq_lut[b];
+        } else {
+            // sRGB encoded Rec.709, white = 100 nits.
+            const auto lin = [](u32 v) {
+                const float c = static_cast<float>(v) / 1023.0f;
+                return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+            };
+            y = 100.0f * (0.2126f * lin(r) + 0.7152f * lin(g) + 0.0722f * lin(b));
+        }
+        nits[i] = y;
+        sum += y;
+    }
+    const float mean = static_cast<float>(sum / nits.size());
+    std::ranges::sort(nits);
+    const float p95 = nits[nits.size() * 95 / 100];
+    Diag::OnFrameBrightness(frame->probe_gpu_frame, frame->probe_hdr, mean, p95, nits.back());
 }
 
 Frame* Presenter::PrepareLastFrame() {
@@ -774,6 +905,9 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     pp_settings.srgb_input =
         attribute.attrib.pixel_format == Libraries::VideoOut::PixelFormat::A2R10G10B10Srgb;
     pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
+    if (Diag::Enabled()) {
+        RecordBrightnessProbe(cmdbuf, frame);
+    }
 
     DebugState.game_resolution = {image_size.width, image_size.height};
     DebugState.output_resolution = {frame->width, frame->height};
@@ -1159,6 +1293,8 @@ Frame* Presenter::GetRenderFrame() {
             continue;
         }
     }
+
+    ReportBrightnessProbe(frame);
 
     if (frame->width != expected_frame_width || frame->height != expected_frame_height ||
         frame->is_hdr != swapchain.GetHDR()) {
