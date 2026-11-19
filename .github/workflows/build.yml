@@ -10,6 +10,11 @@ name: Build (Windows)
 
 on:
   push:
+    # only main and the pr-* branches behind open pull requests; experiment branches pushed to a
+    # fork are built locally and would otherwise send a failure mail per push
+    branches:
+      - main
+      - "pr-*"
     paths-ignore:
       - "documents/**"
       - "docs/**"
