@@ -195,7 +195,9 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
                static_cast<AF1>(input_size.width), static_cast<AF1>(input_size.height),
                static_cast<AF1>(input_size.width), static_cast<AF1>(input_size.height), (AF1)width,
                (AF1)height);
-    consts.Sample[0] = hdr && !settings.use_rcas ? 1 : 0;
+    // Sample.x = 1 squares the output (the FSR sample's gamma 2.0 to linear step). HDR frames are
+    // PQ encoded for an HDR10 swapchain, so they must pass through unchanged.
+    consts.Sample[0] = 0;
 
     if (settings.use_rcas) {
 
@@ -273,7 +275,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
         { // rcas
             consts = {};
             FsrRcasCon(reinterpret_cast<AU1*>(&consts.Const0), settings.rcas_attenuation);
-            consts.Sample[0] = hdr ? 1 : 0;
+            consts.Sample[0] = 0;
 
             std::array<vk::DescriptorImageInfo, 3> img_info{{
                 {

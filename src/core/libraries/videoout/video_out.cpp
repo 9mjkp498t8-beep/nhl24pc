@@ -379,6 +379,8 @@ s32 PS4_SYSV_ABI sceVideoOutGetDeviceCapabilityInfo(
             pDeviceCapabilityInfo->capability |= ORBIS_VIDEO_OUT_DEVICE_CAPABILITY_BT2020_PQ;
         }
     }
+    Diag::Eventf("videoout", "sceVideoOutGetDeviceCapabilityInfo -> {:#x} (host HDR {})",
+                 pDeviceCapabilityInfo->capability, presenter->IsHDRSupported());
     return ORBIS_OK;
 }
 
@@ -456,6 +458,8 @@ s32 PS4_SYSV_ABI sceVideoOutConfigureOutputMode_(s32 handle, u32 reserved, const
     default:
         return ORBIS_VIDEO_OUT_ERROR_INVALID_VALUE;
     }
+    Diag::Eventf("videoout", "sceVideoOutConfigureOutputMode colorimetry {} -> hdr {}",
+                 static_cast<u32>(mode->colorimetry), port->is_hdr);
 
     return ORBIS_OK;
 }

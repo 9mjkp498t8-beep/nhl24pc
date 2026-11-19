@@ -165,6 +165,9 @@ void Swapchain::FindPresentFormat() {
         std::find_if(formats.begin(), formats.end(), [](const vk::SurfaceFormatKHR& format) {
             return format == SURFACE_FORMAT_HDR;
         }) != formats.end();
+    Diag::Eventf("window", "HDR10 surface format {}, hdr_allowed {}",
+                 supports_hdr ? "available" : "not offered (Windows HDR off?)",
+                 EmulatorSettings.IsHdrAllowed());
     // Also make sure that user allowed us to use HDR
     supports_hdr &= EmulatorSettings.IsHdrAllowed();
 
